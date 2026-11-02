@@ -1,0 +1,64 @@
+name: OmniPulse Live Satellite Radar Engine
+on:
+  schedule:
+    - cron: '*/5 * * * *' # በየ 5 ደቂቃው ራሱ እየተነሳ በነፃ የሚሰራበት ማዘዣ ቁልፍ
+  workflow_dispatch: # በእጅህም መንካት ስትፈልግ ማስነሻ ቁልፍ
+
+jobs:
+  radar-hack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and Inject Live Satellite Data to Supabase
+        run: |
+          NODE_CODE=$(cat << 'EOF'
+          const url = "https://newsapi.org";
+          const supabaseUrl = "https://supabase.co";
+          const apiKey = "sb_secret_arp0x-gbdVPIT0nMvTV_PQ_b27e_4qs";
+
+          async function startRadar() {
+            try {
+              const fetch = (await import('node-fetch')).default;
+              
+              // 1. መረጃውን መጥለፍ
+              const res = await fetch(url);
+              const data = await res.json();
+              if (!data.articles || data.articles.length === 0) return;
+              
+              const article = data.articles[0];
+              
+              // 2. መረጃውን ወደ አማርኛ በ AI መተርጎም (ነፃ የትርጉም መረብ)
+              const transRes = await fetch(`https://googleapis.com{encodeURIComponent(article.title)}`);
+              const transData = await transRes.json();
+              const amharicTitle = transData[0][0][0];
+
+              const descRes = await fetch(`https://googleapis.com{encodeURIComponent(article.description || "No description")}`);
+              const descData = await descRes.json();
+              const amharicDesc = descData[0][0][0];
+
+              // 3. መረጃውን በቀጥታ ወደ Supabase መጋዘን መክተት
+              const payload = {
+                title: amharicTitle,
+                description: amharicDesc,
+                source: article.source.name,
+                status: "Live GitHub Feed"
+              };
+
+              await fetch(supabaseUrl, {
+                method: 'POST',
+                headers: {
+                  'apikey': apiKey,
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify(payload)
+              });
+              console.log("✓ Satellite data successfully injected!");
+            } catch (err) {
+              console.error("Radar Error:", err);
+            }
+          }
+          startRadar();
+          EOF
+          )
+          node -e "$NODE_CODE"
