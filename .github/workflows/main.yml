@@ -1,17 +1,16 @@
 name: OmniPulse Live Satellite Radar Engine
 on:
   schedule:
-    - cron: '*/5 * * * *' # በየ 5 ደቂቃው ራሱ እየተነሳ በነፃ የሚሰራበት ማዘዣ ቁልፍ
-  workflow_dispatch: # በእጅህም መንካት ስትፈልግ ማስነሻ ቁልፍ
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   radar-hack:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch and Inject Live Satellite Data to Supabase
+      - name: Fetch Raw Intelligence and Inject to Supabase
         run: |
           NODE_CODE=$(cat << 'EOF'
-          const url = "https://newsapi.org";
           const supabaseUrl = "https://supabase.co";
           const apiKey = "sb_secret_arp0x-gbdVPIT0nMvTV_PQ_b27e_4qs";
 
@@ -19,28 +18,28 @@ jobs:
             try {
               const fetch = (await import('node-fetch')).default;
               
-              // 1. መረጃውን መጥለፍ
-              const res = await fetch(url);
+              // 1. ከቀጥታ የዓለም ጥሬ የዜና ማስተላለፊያ መስመሮች (Raw Wire API) መረጃን መጥለፍ
+              const res = await fetch("https://spaceflightnewsapi.net");
               const data = await res.json();
-              if (!data.articles || data.articles.length === 0) return;
+              if (!data.results || data.results.length === 0) return;
               
-              const article = data.articles[0];
+              const rawData = data.results[0];
               
-              // 2. መረጃውን ወደ አማርኛ በ AI መተርጎም (ነፃ የትርጉም መረብ)
-              const transRes = await fetch(`https://googleapis.com{encodeURIComponent(article.title)}`);
+              // 2. በራስ-ገዝ ወደ አማርኛ መተርጎም
+              const transRes = await fetch(`https://googleapis.com{encodeURIComponent(rawData.title)}`);
               const transData = await transRes.json();
               const amharicTitle = transData[0][0][0];
 
-              const descRes = await fetch(`https://googleapis.com{encodeURIComponent(article.description || "No description")}`);
+              const descRes = await fetch(`https://googleapis.com{encodeURIComponent(rawData.summary || "No description")}`);
               const descData = await descRes.json();
               const amharicDesc = descData[0][0][0];
 
-              // 3. መረጃውን በቀጥታ ወደ Supabase መጋዘን መክተት
+              // 3. ወደ Supabase መጋዘን መርጨት
               const payload = {
                 title: amharicTitle,
                 description: amharicDesc,
-                source: article.source.name,
-                status: "Live GitHub Feed"
+                source: "Sovereign Satellite Node",
+                status: "Hacked Raw Data"
               };
 
               await fetch(supabaseUrl, {
@@ -53,7 +52,7 @@ jobs:
                 },
                 body: JSON.stringify(payload)
               });
-              console.log("✓ Satellite data successfully injected!");
+              console.log("✓ Raw data successfully injected!");
             } catch (err) {
               console.error("Radar Error:", err);
             }
